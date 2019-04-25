@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "i2c.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -28,6 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "led.h"
+#include "eeprom.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,8 +50,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint16_t USART_RX_Length=0;		//串口接收的长度
-uint8_t USART_RXBuffer[256];	//串口接收的数据保存在这
+uint16_t USART_RX_Length = 0;   //串口接收的长度
+uint8_t USART_RXBuffer[256];    //串口接收的数据保存在这
 uint8_t USART_RXSingleBuffer;
 /* USER CODE END PV */
 
@@ -70,7 +72,7 @@ void SystemClock_Config(void);
 //串口重定向到printf
 PUTCHAR_PROTOTYPE
 {
-    HAL_UART_Transmit(&huart1 , (uint8_t *)&ch, 1 , 0xffff);
+    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xffff);
     return ch;
 }
 
@@ -105,22 +107,23 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
-	HAL_UART_Receive_IT(&huart1,&USART_RXSingleBuffer,1);
-	printf("Hello STM32F407\n");
+  HAL_UART_Receive_IT(&huart1, &USART_RXSingleBuffer, 1);
+  printf("Hello STM32F407\n");
+  bsp_led_blinken(LED1_Pin, 3, 100);
 
-	bsp_led_blinken(LED1_Pin,10,300);
-	
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+    while (1)
+    {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+    }
   /* USER CODE END 3 */
 }
 
@@ -169,40 +172,47 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-  /* Prevent unused argument(s) compilation warning */
-  UNUSED(huart);
-  /* NOTE: This function Should not be modified, when the callback is needed,
-           the HAL_UART_TxCpltCallback could be implemented in the user file
-   */
-	if(USART_RX_Length >= 255)  //溢出判断
-	{
-		USART_RX_Length = 0;
-		memset(USART_RXBuffer,0x00,sizeof(USART_RXBuffer));
-		//printf("数据溢出(大于256)\r\n");
-	}
-	else
-	{
-		if(USART_RX_Length==0)
-		{
-			memset(USART_RXBuffer,0,256);
-		}
-		
-		USART_RXBuffer[USART_RX_Length++] = USART_RXSingleBuffer;   //接收数据转存
-	
-		if((USART_RXBuffer[USART_RX_Length-1] == 0x0A)&&(USART_RXBuffer[USART_RX_Length-2] == 0x0D)) //判断结束位
-		{
-			USART_RX_Length=0;
-			printf("receive: %s",USART_RXBuffer);
-			if(memcmp(USART_RXBuffer,"run",3)==0)	
-			{
-				printf("\r\n start scan");
-				
-			}
-			
-			
-		}
-	}	
-	HAL_UART_Receive_IT(&huart1, (uint8_t *)&USART_RXSingleBuffer, 1);   //再开启接收中断
+    /* Prevent unused argument(s) compilation warning */
+    UNUSED(huart);
+    /* NOTE: This function Should not be modified, when the callback is needed,
+             the HAL_UART_TxCpltCallback could be implemented in the user file
+     */
+
+    if (huart->Instance == huart1.Instance)
+    {
+        if (USART_RX_Length >= 255) //溢出判断
+        {
+            USART_RX_Length = 0;
+            memset(USART_RXBuffer, 0x00, sizeof(USART_RXBuffer));
+            //printf("数据溢出(大于256)\r\n");
+        }
+        else
+        {
+            if (USART_RX_Length == 0)
+            {
+                memset(USART_RXBuffer, 0, 256);
+            }
+
+            USART_RXBuffer[USART_RX_Length++] = USART_RXSingleBuffer;   //接收数据转存
+
+            if ((USART_RXBuffer[USART_RX_Length - 1] == 0x0A)
+                    && (USART_RXBuffer[USART_RX_Length - 2] == 0x0D)) //判断结束位
+            {
+                USART_RX_Length = 0;
+                printf("receive: %s", USART_RXBuffer);
+                if (memcmp(USART_RXBuffer, "run", 3) == 0)
+                {
+                    printf("\r\n start scan");
+
+                }
+
+
+            }
+        }
+        HAL_UART_Receive_IT(&huart1, (uint8_t *)&USART_RXSingleBuffer, 1); //再开启接收中断
+
+    }
+
 }
 
 
@@ -217,7 +227,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
+    /* User can add his own implementation to report the HAL error return state */
 
   /* USER CODE END Error_Handler_Debug */
 }
@@ -233,8 +243,8 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 { 
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+    /* User can add his own implementation to report the file name and line number,
+       tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
