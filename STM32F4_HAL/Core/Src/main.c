@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -30,6 +31,7 @@
 #include <string.h>
 #include "led.h"
 #include "eeprom.h"
+#include "spi_flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -76,6 +78,7 @@ PUTCHAR_PROTOTYPE
     return ch;
 }
 
+
 /* USER CODE END 0 */
 
 /**
@@ -109,11 +112,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   MX_UART4_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
   HAL_UART_Receive_IT(&huart1, &USART_RXSingleBuffer, 1);
   printf("Hello STM32F407\n");
   bsp_led_blinken(LED1_Pin, 3, 100);
-
+	W25X128_Read_ID();
+	
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
