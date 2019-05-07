@@ -23,6 +23,7 @@
 #include "i2c.h"
 #include "rtc.h"
 #include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -34,12 +35,13 @@
 #include "led.h"
 #include "eeprom.h"
 #include "spi_flash.h"
+#include "DS18B20.h"
+#include "delay.h"
 #include "bsp_rtc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
 RTC_DateTypeDef	sdatestructure;
 RTC_TimeTypeDef stimestructure;
 /* USER CODE END PTD */
@@ -118,19 +120,22 @@ int main(void)
   MX_I2C1_Init();
   MX_UART4_Init();
   MX_SPI1_Init();
+  MX_TIM3_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  HAL_UART_Receive_IT(&huart1, &USART_RXSingleBuffer, 1);
-  printf("Hello STM32F407\n");
-  bsp_led_blinken(LED1_Pin, 3, 100);
-	W25X128_Read_ID();
 	
-	
-  /* USER CODE END 2 */
 	SEGGER_RTT_ConfigUpBuffer(0,"RTTUP",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
 	SEGGER_RTT_ConfigDownBuffer(0,"RTTDOWN",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+	HAL_UART_Receive_IT(&huart1, &USART_RXSingleBuffer, 1);
 	bsp_rtc_init();
+  
+  printf("Hello STM32F407ZG Test\r\n");
+
+	HAL_TIM_Base_Start_IT(&htim3);
 	BSP_RTC_GetDate();
 	BSP_RTC_GetTime();
+
+	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -151,6 +156,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage 
   */
@@ -158,8 +164,9 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
@@ -180,6 +187,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
@@ -218,7 +231,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
                 printf("receive: %s", USART_RXBuffer);
                 if (memcmp(USART_RXBuffer, "run", 3) == 0)
                 {
-                    printf("\r\n start scan");
+                    printf("start scan\r\n ");
 
                 }
 
@@ -231,8 +244,20 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 }
 
-
+//Timer base Interrupt function
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim->Instance==htim3.Instance)
+	{
+		bsp_led_toggle(LED0_Pin);
+//		static uint16_t counter=0;
+//		printf("counter=%d\r\n",counter);
 //		SEGGER_RTT_printf(0,"counter=%d\r\n",counter);
+//		counter++;
+//		float temp=ReadTemperature_DS18B20();
+//		printf("temp=%f\r\n",temp);
+	}
+}
 
 
 /* USER CODE END 4 */
