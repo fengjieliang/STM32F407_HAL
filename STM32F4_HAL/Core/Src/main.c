@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
+#include "SEGGER_RTT.h"
 #include "led.h"
 #include "eeprom.h"
 #include "spi_flash.h"
@@ -121,6 +122,8 @@ int main(void)
 	
 	
   /* USER CODE END 2 */
+	SEGGER_RTT_ConfigUpBuffer(0,"RTTUP",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+	SEGGER_RTT_ConfigDownBuffer(0,"RTTDOWN",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -222,6 +225,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 
+//		SEGGER_RTT_printf(0,"counter=%d\r\n",counter);
 
 
 /* USER CODE END 4 */
