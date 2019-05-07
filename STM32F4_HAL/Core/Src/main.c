@@ -21,6 +21,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "rtc.h"
 #include "spi.h"
 #include "usart.h"
 #include "gpio.h"
@@ -33,11 +34,14 @@
 #include "led.h"
 #include "eeprom.h"
 #include "spi_flash.h"
+#include "bsp_rtc.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+RTC_DateTypeDef	sdatestructure;
+RTC_TimeTypeDef stimestructure;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -124,6 +128,9 @@ int main(void)
   /* USER CODE END 2 */
 	SEGGER_RTT_ConfigUpBuffer(0,"RTTUP",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
 	SEGGER_RTT_ConfigDownBuffer(0,"RTTDOWN",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+	bsp_rtc_init();
+	BSP_RTC_GetDate();
+	BSP_RTC_GetTime();
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
