@@ -20,24 +20,20 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "i2c.h"
-#include "rtc.h"
-#include "spi.h"
-#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
+#include "fsmc.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "SEGGER_RTT.h"
 #include <stdio.h>
 #include <string.h>
+#include "bsp_uart.h"
 #include "bsp_led.h"
-#include "bsp_rtc.h"
-#include "bsp_eeprom.h"
-#include "delay.h"
-#include "DS18B20.h"
-#include "bsp_spi_flash.h"
+#include "FreeRTOS_tasks.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "bsp_lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -58,9 +54,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-uint16_t USART_RX_Length = 0;   //串口接收的长度
-uint8_t USART_RXBuffer[256];    //串口接收的数据保存在这
-uint8_t USART_RXSingleBuffer;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -71,20 +65,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-#ifndef __GNUC__
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#else
-#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
-#endif
-//串口重定向到printf
-PUTCHAR_PROTOTYPE
-{
-    HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xffff);
-    return ch;
-}
-
-
 
 /* USER CODE END 0 */
 
@@ -112,33 +92,21 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  SEGGER_RTT_ConfigUpBuffer(0,"RTTUP",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
-	SEGGER_RTT_ConfigDownBuffer(0,"RTTDOWN",NULL,0,SEGGER_RTT_MODE_NO_BLOCK_SKIP);
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART1_UART_Init();
-  MX_I2C1_Init();
-  MX_TIM2_Init();
-  MX_TIM5_Init();
-  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  //开启UART1的接收
+	start_uart_receive();
+	bsp_led_on(LED1_Pin);
+	printf("STM32F407ZG Dev-Board\r\n");
+	bsp_lcd_init();
 	
-	//peripheral init
-	bsp_rtc_init();
-	
-	printf("STM32F407ZG Project\r\n");
-//	bsp_led_blinken(LED0_Pin,2,300);
-
-	BSP_RTC_GetDate();
-	BSP_RTC_GetTime();
-	
-	//start recive data from uart1
-	HAL_UART_Receive_IT(&huart1, &USART_RXSingleBuffer, 1);
-	//start timer 5
-	HAL_TIM_Base_Start_IT(&htim5);
-	
+//   AppTaskCreate();
+//   vTaskStartScheduler();
 	
   /* USER CODE END 2 */
 
@@ -161,7 +129,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage 
   */
@@ -169,9 +136,8 @@ void SystemClock_Config(void)
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the CPU, AHB and APB busses clocks 
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 8;
@@ -195,65 +161,15 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInitStruct.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-    /* Prevent unused argument(s) compilation warning */
-    UNUSED(huart);
-    /* NOTE: This function Should not be modified, when the callback is needed,
-             the HAL_UART_TxCpltCallback could be implemented in the user file
-     */
-
-    if (huart->Instance == huart1.Instance)
-    {
-        if (USART_RX_Length >= 255) //溢出判断
-        {
-            USART_RX_Length = 0;
-            memset(USART_RXBuffer, 0x00, sizeof(USART_RXBuffer));
-            //printf("数据溢出(大于256)\r\n");
-        }
-        else
-        {
-            if (USART_RX_Length == 0)
-            {
-                memset(USART_RXBuffer, 0, 256);
-            }
-
-            USART_RXBuffer[USART_RX_Length++] = USART_RXSingleBuffer;   //接收数据转存
-
-            if ((USART_RXBuffer[USART_RX_Length - 1] == 0x0A)
-                    && (USART_RXBuffer[USART_RX_Length - 2] == 0x0D)) //判断结束位
-            {
-                USART_RX_Length = 0;
-                printf("receive: %s", USART_RXBuffer);
-                if (memcmp(USART_RXBuffer, "run", 3) == 0)
-                {
-                    printf("start scan\r\n ");
-
-                }
-
-
-            }
-        }
-        HAL_UART_Receive_IT(&huart1, (uint8_t *)&USART_RXSingleBuffer, 1); //再开启接收中断
-
-    }
-
-}
 
 /* USER CODE END 4 */
 
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM3 interrupt took place, inside
+  * @note   This function is called  when TIM1 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -264,20 +180,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM3) {
+  if (htim->Instance == TIM1) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-	if(htim->Instance==TIM5)
-	{
-		bsp_led_toggle(LED1_Pin);
-//		static uint32_t counter=0;
-//		printf("counter=%d\r\n",counter);
-//		counter++;
-//		float temp=ReadTemperature_DS18B20();
-//		printf("temp=%f\r\n",temp);
-		
-	}
+
   /* USER CODE END Callback 1 */
 }
 
